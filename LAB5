@@ -1,0 +1,140 @@
+---
+title: "Lab 5"
+output: html_document
+---
+
+```{r setup, include=FALSE, echo=FALSE}
+require("knitr")
+opts_knit$set(root.dir = "C:/Users/eddie/Desktop") 
+#use this to set your working directory so knitr understands it
+```
+
+## Lab 5
+
+### Due Tuesday Feb1st - Recommended to complete this before starting the midterm
+
+This lab we will look at some data from the plastic trash piced up during clean-up events around the world. I took this dataset from the Tidy Tuesday website. You can read the documentation [here](https://github.com/rfordatascience/tidytuesday/blob/master/data/2021/2021-01-26/readme.md), including the references and description of the different column names.
+
+I have done some pre-processing of the data for you for this lab, to create two more easy-to-use dataframes.
+
+First read in the countrytotals.csv data frame
+```{r echo=FALSE}
+
+file_path <- "C:/Users/eddie/Downloads/countrytotals.csv"
+country_data <- read.csv(file_path)
+str(country_data)
+
+
+```
+
+Have a look at the data frame. Then column "total" gives the total number of pieces of plastic picked up in that country in 2020. The columns "num_events" and "volunteers" give the number of trash pick-up events and the number of volunteers in that country. We are going to use this to investigate where the plastic trash problem is worst.
+
+1. What 5 countries had the worst plastic problem as measured by the number of pieces of trash picked up?
+
+```{r echo=FALSE}
+
+#hint order(datacolumn, decreasing=TRUE) will give you the ranking of the countries by the values in the data column
+#you can use this to re-order the country data frame, ordering it from the country with the most trash picked up to the least
+
+country_data <- country_data[order(country_data$total, decreasing = TRUE), ]
+worst_countries <- head(country_data, 5)
+print(worst_countries)
+
+
+```
+
+**Answer:**  Nigeria Philippines  Switzerland India  Togo 
+
+
+
+2. Make a plot showing the distribution of volunteers across coutnries
+
+```{r echo=FALSE}
+library(ggplot2)
+
+ggplot(country_data, aes(x = country, y = volunteers)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(x = "Countries", y = "Volunteers", title = "Distribution of Volunteers Across Countries") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 1, hjust = 1))
+
+hist(country_data$volunteers, 
+     main = "Distribution of Volunteers Across Countries",
+     xlab = "Number of Volunteers",
+     ylab = "Frequency")
+```
+
+3. Notice that there is a lot of variation across countries in the number of volunteers involved in trash pickup. What problem might that cause for the interpretation of your answer to question 1?
+
+**Answer:The variation in the number of volunteers across countries may skew the interpretation of the plastic pollution index, potentially leading to misleading conclusions about the severity of plastic pollution in different countries. Such as a country with a relatively low amount of plastic picked up but also a low number of volunteers may still have a high plastic pollution index, indicating severe pollution per volunteer, even though the overall pollution level might not be as high as in a country with a higher total amount of plastic but also more volunteers.** 
+
+The variation in volunteer participation across countries can introduce bias, influencing the perception of the severity of the plastic problem in each country.
+
+
+4. Add a column to the data frame creating a variable that should be more closely related to the presence of plastic pollution in the country
+
+```{r echo=FALSE}
+country_data$plastic_pollution = country_data$total / country_data$volunteers
+head(country_data)
+
+#or this way （but I think its wrong）
+country_data$plastic_pollution <- (country_data$hdpe + country_data$ldpe + country_data$o +
+                                          country_data$pet + country_data$pp + country_data$ps + country_data$pvc) / 
+                                          country_data$volunteers
+
+colnames(country_data)
+```
+
+5. What 5 countries have the worst plastic pollution, as measured by this new variable?
+
+```{r echo=FALSE}
+
+country_worst_pollution <- country_data[order(country_data$plastic_pollution, decreasing = TRUE), ]
+head(country_worst_pollution$country, 5)
+
+
+```
+
+**Answer:** "Togo""El Salvador""Japan""Kuwait""Germany"
+
+Now we will make a plot of the variation in the types of trash and how it differs around the world. Read in the continenttypes.csv data frame. This gives the breakdown of the different types of plastic collected on each continet in 2020 and the total number of pick up events.
+
+```{r echo=FALSE}
+file_path <- "C:/Users/eddie/Downloads/continenttypes.csv"
+continenttypes <- read.csv(file_path)
+
+```
+
+6. Add a column to this data frame with a variable that captures the existence of different types of plastic trash, controlling for the intensity of the pick-up effort in different continent
+
+```{r echo=FALSE}
+continenttypes$plastic_ratio <- with(continenttypes, total / events)
+
+head(continenttypes)
+continenttypes$controlled = continenttypes$total / continenttypes$events
+
+```
+
+7. Make a plot using ggplot showing both the total amount and distribution of types of plastic picked up in each continent in the average pick-up event.
+
+Hint: Check out options in the [R graph gallery](https://www.r-graph-gallery.com)
+
+```{r echo=FALSE}
+library(ggplot2)
+
+ggplot(continenttypes, aes(x = reorder(continent, -events), y = plastic_ratio, fill = plastic_type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(x = "Continent", y = "Plastic Ratio (Total/Events)", title = "Total Amount and Distribution of Plastic Types in Each Continent per Average Pick-up Event") +
+  scale_fill_brewer(palette = "Set3") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+#or
+library(ggplot2)
+ggplot(continenttypes, aes(fill = continent, x = plastic_type, y = controlled)) +
+  geom_bar(position = 'stack', stat = 'identity') +
+  labs(x = 'Type of plastic', y = 'Total plastic picked up in avg. pick-up event') +
+  theme_minimal()
+  
+```
+
+8. Try uploading your R markdown file and plot to your Git Hub repository. Don't put your knitted HTML file in Github - these are large files that are not designed to be stored on Github
