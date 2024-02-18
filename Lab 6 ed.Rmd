@@ -31,9 +31,12 @@ library(rnaturalearth)
 
 install.packages("rnaturalearthdata")
 library(rnaturalearthdata)
+library(ggplot2)
 
 NAmap <- ne_countries(continent = "North America", scale = "medium", returnclass = "sf")
-head(NAmap)
+ggplot() +
+  geom_sf(data = NAmap, fill = "white", color = "black") +
+  theme_minimal()
 ```
 
 2b. Use the identical() function to test whether the coordinate reference system (crs) is the same for the GPS location points and the north america map. If it is not, use st_transform() to transform the north america map to the same crs as the GPS points. If necessary, use the identical() function again to check that the crs of the two data-sets are the same.
@@ -144,7 +147,7 @@ density_plot <- ggplot(data = blue_whale_data) +
   stat_density_2d(aes(x = long, y = lat, fill = after_stat(density)), geom = "raster", contour = FALSE) + 
   scale_fill_viridis() + 
   labs(fill = "Density", title = "Blue Whale Migration Density and Marine Protected Areas") + 
-  geom_sf(data = mpa_data_uswc, fill = "blue", color = "black", alpha = 0.3) +  
+  geom_sf(data = mpa_data_uswc, fill = NA, color = "black", alpha = 0.3) +  
   geom_sf(data = NAmap, fill = "lightgray", color = "black") + 
   coord_sf(xlim = c(-126.5, -116), ylim = c(32, 40)) + 
   theme_minimal()
