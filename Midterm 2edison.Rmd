@@ -1,0 +1,158 @@
+---
+title: "Midterm 2"
+output: html_document
+---
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/eddie/Desktop") 
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+```
+## Midterm 2
+
+This midterm will require two datasets:
+install.packages(c("sf", "raster", "tidyr", "ggplot2"))
+library(sf)
+library(raster)
+library(tidyr)
+library(ggplot2)
+1. A NetCDF file containing four layers with data on landuse in China. Each layer gives the fraction of the grid cell with land in the following land-types: urban (layer 1), cropland (layer 2), grassland (layer 3) and forest (layer 4). This file is named chinalanduse_MODIS_2012.nc - MODIS refers to the satellite data it is derived from and it is for the year 2012. This data came from this cool website: <https://terra.ipums.org/>
+
+2. A shapefile with polygons of provincial boundaries in China - chn_admbnda_adm1_ocha_2020.shp
+
+You will want to consider using the packages sf, raster, tidyr and ggplot2
+
+1. Read in the land use data as a raster brick and the shapefile as an sf object (2 points)
+
+```{r}
+library(raster)
+library(sf)
+
+landuse_file <- "C:/Users/eddie/Downloads/chinalanduse_MODIS_2012.nc"
+province_shapefile <- "C:/Users/eddie/Downloads/midterm__export/Province Shapefile/chn_admbnda_adm1_ocha_2020.shp"
+
+
+landusecn <- brick(landuse_file)
+provincessf <- st_read(province_shapefile)
+```
+
+2a. Crop the land use raster brick to the same extent as the shapefile of Chinese provinces (1 point)
+
+```{r}
+landusecn <- crop(landusecn, extent(provincessf))
+```
+
+2b. Rename the layers in the raster brick so they provide information about what data is in each of the 4 layers (2 points)
+
+```{r}
+
+#Hint: check out the names() function to find and assign names of layers of raster objects
+names(landusecn) <- c("Urban", "Cropland", "Grassland", "Forest")
+```
+
+3. Make a figure with four panels. Plot each raster brick layer on one of the panels and overlay the polygons of the Chinese provinces. Title each panel with the type of land use it shows. (4 points)
+
+BONUS: Not required for full points, but worth a bonus 2 points - use a for loop to make the four panels of your figure (2 BONUS points)
+
+```{r}
+
+library(ggplot2)
+library(raster)
+
+plots <- list()
+par(mfrow = c(2, 2))
+
+for (i in 1:4) {
+  layer_data <- as.data.frame(rasterToPoints(landusecn[[i]]), stringsAsFactors = FALSE)
+  colnames(layer_data) <- c("x", "y", "value")  
+  
+  
+  plotcn <- ggplot() +
+    geom_raster(data = layer_data, aes(x = x, y = y, fill = value)) +
+    geom_sf(data = provincessf, fill = NA, color = "white") +
+    scale_fill_viridis_c() +
+    labs(title = names(landusecn)[i], x = "Longitude", y = "Latitude") +
+    theme_minimal() +
+    theme(axis.text = element_text(size = 5), axis.title = element_text(size = 10))
+  
+  
+  plots[[i]] <- plotcn
+}
+
+plotai <- gridExtra::grid.arrange(grobs = plots, ncol = 2)
+
+```
+
+4a. Use the extract function in the raster package to find the fraction of each province in each of the four land use classes. [For this question you can assume all the grid cells have the same area] (3 points)
+
+```{r}
+#Hint: This step may take a long time. You might want to save the data frame after you extract the data so you don't have to run the code again. You can save objects in R as RData files (.Rdat) using save() and then read them in again using load(). 
+library(raster)
+
+
+extracted_data <- raster:: extract(landusecn, provincessf, fun = mean, na.rm = TRUE)
+
+land_use_by_province <- as.data.frame(extracted_data)
+
+save(land_use_by_province, file = "land_use_by_province.RData")
+
+```
+
+4b. Describe the potential problem with the area assumption made in 4a. How might it affect the calculation in that step? What could we do if we didn't want to make that assumption? (You don't have to do it, just describe in theory) (2 points)
+
+**Answer:The potential problem with the area assumption made in 4a is that it does not account for variations in grid cell sizes, which can lead to inaccurate calculations of land use fractions. If we didn't want to make that assumption, we could calculate the actual area of each grid cell and use it to weight the land use fractions accordingly**
+
+4c. Sum up the fractions in the four land classes for each province and plot as a histogram. Why do they not sum to 1? (2 points)
+
+(Note: there are two polygons for which land-use data is missing and therefore the sum will be 0 - don't worry about that)
+
+**Answer:Its represent the proportions of different land use types within each province rather than the total amount of land use in that province, so they may not sum to 1.**
+
+```{r}
+
+colnames(land_use_by_province) <- c("urban", "cropland", "grassland", "forest")
+
+land_use_by_province$sum_fractions <- rowSums(land_use_by_province[, c("urban", "cropland", "grassland", "forest")])
+
+hist(land_use_by_province$sum_fractions, breaks = 10, main = "Histogram of Land Use Fractions", xlab = "Sum of Fractions", ylab = "Frequency")
+
+```
+
+5a. Add in the names of the provinces to your data from step 4a (1 point)
+
+```{r}
+land_use_by_province$province <- provincessf$ADM1_EN
+```
+
+5b. Pivot the data frame so you have "tidy" data (i.e. one row for each province-landuse type) (2 points)
+
+```{r}
+library(tidyr)
+
+
+tidy_landuse <- pivot_longer(land_use_by_province, 
+                              cols = c("urban", "cropland", "grassland", "forest"),
+                              names_to = "land_use_type",
+                              values_to = "Fraction")
+
+
+```
+
+6. Make a graph showing the breakdown of urban, cropland, grassland, and forest for each province. (4 points)
+
+```{r}
+library(ggplot2)
+
+ggplot(tidy_landuse, aes(x = province, y = Fraction, fill = land_use_type)) +
+  geom_bar(stat = "identity", position = "stack") +
+  labs(title = "Land Use Breakdown by Province",
+       x = "Province",
+       y = "Fraction",
+       fill = "Land Use Type") +
+  theme(axis.text.x = element_text(angle = 90, hjust=1)) +
+  scale_fill_manual(values = c("Urban" = "yellow", "Cropland" = "green", "Grassland" = "lightblue", "Forest" = "purple"))
+
+#i dont know why i have a warning and the color did not show on the plot...but the code i think its not wrong to run... 
+```
+
+7. Upload your R markdown file, and your knitted output to Canvas. Push the R markdown file to your Github repository. (2 points)
+√
