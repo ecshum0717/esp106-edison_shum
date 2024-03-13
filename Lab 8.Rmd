@@ -1,0 +1,165 @@
+---
+title: "Lab 8"
+author: "Edison Shum"
+date: "3/6/2024"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+knitr::opts_knit$set(root.dir = "C:/Users/eddie/Desktop")
+options(repos = c(CRAN = "https://cloud.r-project.org"))
+```
+
+## Lab 8: Practicing Tidyverse and assessing environmental inequities in the US
+
+In this lab I am giving you a dataset created by merging county-level racial and income data from the Census Bureau (which I obtained using the tidycensus package - useful if you want to use census data in your final project) with data on environmental pollution from EPA's [EJSCREEN]<https://www.epa.gov/ejscreen> dataset to investigate the associate between race, class, and environmental exposure in the US.
+
+The variable definitions are as follows:
+GEOID: Unique county identifier
+NAME: County Name
+pct_AfAm: Percent population African American
+pct_low_income: Percent low income (household income <$25,000)
+DSLPM: Diesel Particulate Matter 
+CANCER: Cancer Risk Measure
+RESP: Respiratory Hazard Index
+PNPL: Superfund Proximity
+OZONE: Ozone Concentration Score
+PM25: PM 2.5 Concentration Score
+
+Wherever possible, pracitce using Tidyverse syntax and functions
+install.packages("tidyverse")
+library(tidyverse)
+1. The goal of this lab is to assess how race, income, and exposure to environmental pollution vary across counties. This is challenging right now because the pollution and social variables are on very different scales. We will fix this by transforming all relevant variables to their quintile group (i.e. is a particular county in the bottom fifth, second from bottom fifth etc) before doing our analysis.
+
+Write a function that takes in a vector and returns the quintile group for each element in the vector. 
+
+Hint: you will want to use quantile() to find the breaks for each quintile group. The relevant probabilities will be c(0,0.2,0.4,0.6,0.8) - i.e. 20%, 40%, 60% etc. You can then use these quantiles in the findInterval() function to find which group each county falls into
+```{r}
+
+library(tidyverse)
+
+data <- read.csv("C:\\Users\\eddie\\Downloads\\lab8data_censusandEJscreen.csv")
+
+
+calculate_quintiles <- function(x) {
+  quantiles <- quantile(x, probs = c(0, 0.2, 0.4, 0.6, 0.8, 1), na.rm = TRUE)
+  quintile_groups <- findInterval(x, quantiles, all.inside = TRUE)
+  labels <- c("Q1", "Q2", "Q3", "Q4", "Q5")
+  factor(labels[quintile_groups], levels = labels)
+}
+
+data <- data %>%
+  mutate(across(c(pct_AfAm, pct_low_inc, DSLPM, CANCER, RESP, PNPL, OZONE, PM25), calculate_quintiles))
+
+
+```
+2. Use mutate() to apply your quintile function to the two socio-economic variables (% African American and % low income) and the six environmental variables.
+
+HINT: specifying across(c(columnnames),function) within mutate allows you to apply the same function to multiple columns
+```{r}
+library(tidyverse)
+
+```
+3. Now we will make a plot examining how exposure to pollution varies with race. I have provided this plot as part of the lab materials (Plot 1). For each quintile of African American population (x axis) it plots the mean quintile of environmental exposure, for each pollutant, with the central 95% of the distribution in each race quintile.
+
+3.1 First we need to some data wrangling to get things in a format for the plot.
+
+Use tidyverse operations to:
+- select the relevant columns we need: county ID and quintile of African American popualation, low-income, and the 6 pollution variables
+- use pivot_longer() to transform the data frame from one where each row is a county to one where each row is a county * pollution combination. In other words, the cols argument of pivot_longer() will be the 6 pollution variables
+- use group_by() and summarize() to calcuate the mean and standard deviation of environmental exposure for each pollutant and quintile of African American population
+
+```{r}
+library(tidyverse)
+
+selected_data <- data %>%
+  select(GEOID, pct_AfAm, pct_low_inc, DSLPM, CANCER, RESP, PNPL, OZONE, PM25)
+
+long_data <- selected_data %>%
+  pivot_longer(cols = c(DSLPM, CANCER, RESP, PNPL, OZONE, PM25), names_to = "pollutant", values_to = "quintile")
+
+
+summary_data <- long_data %>%
+  group_by(pct_AfAm, pollutant) %>%
+  summarize(mean_quintile = mean(as.numeric(quintile), na.rm = TRUE),
+            std_dev_quintile = sd(as.numeric(quintile), na.rm = TRUE))
+
+
+summary_data
+
+```
+3.2 Now we will use this data frame to make the plot. You will want to use geom_point(), geom_errorbar(), and facet_wrap() here. 
+
+HINT: geom_errorbar() requires a ymin and ymax aesthetic mapping. Remember that, assuming normal distribution, the central 95% of the distribution is given by ymin = mean - 1.96 X sd and ymax = mean + 1.96 X sd
+```{r}
+library(ggplot2)
+
+
+summary_data <- summary_data %>%
+  mutate(ymin = mean_quintile - 1.96 * std_dev_quintile,
+         ymax = mean_quintile + 1.96 * std_dev_quintile)
+
+
+plot <- ggplot(summary_data, aes(x = pct_AfAm, y = mean_quintile, color = pollutant, group = pollutant)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.2) +
+  facet_wrap(~pollutant, scales = "free_y", ncol = 2) +
+  labs(title = "Exposure to Pollution by Quintile of African American Population",
+       x = "Quintile of African American Population",
+       y = "Mean Quintile of Environmental Exposure") +
+  theme_minimal()
+
+
+print(plot)
+
+```
+
+3.3 Now make a very similar plot, but examine variation in environmental expsure by both race and income (Plot2 on Canvas).
+
+HINT: You should have to make only *very very minor* changes to the code you used for part 7.1 and 7.2 (this is part of the benefits of coding using tidyverse). 
+```{r}
+
+summary_data <- long_data %>%
+  group_by(pct_AfAm, pct_low_inc, pollutant) %>%
+  summarize(mean_quintile = mean(as.numeric(quintile), na.rm = TRUE),
+            std_dev_quintile = sd(as.numeric(quintile), na.rm = TRUE))
+
+summary_data <- summary_data %>%
+  mutate(ymin = mean_quintile - 1.96 * std_dev_quintile,
+         ymax = mean_quintile + 1.96 * std_dev_quintile)
+
+
+plot2 <- ggplot(summary_data, aes(x = pct_AfAm, y = mean_quintile, color = pollutant, group = pollutant)) +
+  geom_point() +
+  geom_errorbar(aes(ymin = ymin, ymax = ymax), width = 0.2) +
+  facet_grid(pct_low_inc ~ pollutant, scales = "free_y") +
+  labs(title = "Exposure to Pollution by Quintile of African American Population and Low-Income",
+       x = "Quintile of African American Population",
+       y = "Mean Quintile of Environmental Exposure") +
+  theme_minimal()
+
+
+print(plot2)
+
+
+
+```
+
+3. What preliminary conclusions might you draw from this exploratory data analysis about the correlation between race, class and environmental exposure acrosso the US?
+
+#There are differences in environmental indicators between race and class in different counties in the United States. Preliminary data analysis shows that counties with lower African American populations generally have lower cancer risks, diesel particulate matter, etc.And in counties with low income and high proportion of African American population, the differences in environmental exposure are more significant. Showing that racial and class inequities can exist and highlighting issues with environmental justice.
+
+
+
+
+STRETCH GOAL: Not for credit, but if you want to challenge yourself to use nesting, tidyr, broom, map etc.
+
+1. Use nest, map, and tidy to estimate state-level regression models of the cancer risk quintile on race and class quintile and collect the regression estimates into a data frame
+
+2. Plot the race and class coefficients with 95% confidence intervals, using colors to show coefficients that are statistically significant at the 95% level (Plot3 on Canvas)
+
+
+
+
+
